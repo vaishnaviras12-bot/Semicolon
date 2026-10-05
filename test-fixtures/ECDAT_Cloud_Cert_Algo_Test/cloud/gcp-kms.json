@@ -1,0 +1,12 @@
+{
+  "provider": "gcp",
+  "service": "cloud-kms",
+  "cryptoKeyVersion": {
+    "algorithm": "RSA_SIGN_PKCS1_2048_SHA256",
+    "protectionLevel": "HSM"
+  },
+  "tls": {
+    "protocol": "TLSv1.3",
+    "cipher": "TLS_AES_256_GCM_SHA384"
+  }
+}

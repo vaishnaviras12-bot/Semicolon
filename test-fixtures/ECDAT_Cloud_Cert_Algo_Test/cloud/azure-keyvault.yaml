@@ -1,0 +1,11 @@
+provider: azure
+service: key-vault
+key_type: RSA
+key_size: 2048
+curve: P-256
+signature_algorithm: ES256
+certificate:
+  subject: CN=test.example.invalid
+  issuer: CN=ECDAT Test CA
+tls:
+  minimum_version: TLS1_2

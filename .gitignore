@@ -1,0 +1,41 @@
+# Frontend
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+ecdat_pqc.db
+
+# Generated files
+uploads/
+scan_uploads/
+scan_results/
+generated_reports/
+
+# Logs
+*.log
+
+# Python testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

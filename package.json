@@ -1,0 +1,15 @@
+{
+  "name": "upwiecon-project",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix ecdat-app-final-original-video-fixit run build",
+    "start": "python backend/main.py",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "npm --prefix ecdat-app-final-original-video-fixit run dev:frontend",
+    "dev:backend": "python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

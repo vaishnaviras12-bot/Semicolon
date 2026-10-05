@@ -1,0 +1,10 @@
+provider: aws
+service: kms
+region: us-east-1
+key:
+  arn: arn:aws:kms:us-east-1:111122223333:key/fake-key-id
+  spec: RSA_2048
+  signing_algorithm: RSASSA_PKCS1_V1_5_SHA_256
+tls:
+  minimum_version: TLSv1.2
+  cipher_suite: ECDHE-RSA-AES256-GCM-SHA384

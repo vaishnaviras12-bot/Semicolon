@@ -1,0 +1,13 @@
+certificates:
+  - file: rsa-test-cert.pem
+    type: X.509
+    public_key_algorithm: RSA
+    key_size: 2048
+    signature_algorithm: sha256WithRSAEncryption
+    usage: TLS server authentication
+  - file: ec-test-cert.pem
+    type: X.509
+    public_key_algorithm: id-ecPublicKey
+    curve: prime256v1
+    signature_algorithm: ecdsa-with-SHA256
+    usage: TLS server authentication

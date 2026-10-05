@@ -1,0 +1,5 @@
+crypto:
+  algorithm: ${CRYPTO_ALGORITHM}
+  key_size: ${CRYPTO_KEY_SIZE}
+  certificate: ${TLS_CERTIFICATE}
+  cloud_provider: ${CLOUD_PROVIDER}

@@ -1,0 +1,9 @@
+services:
+  crypto-api:
+    image: ecdat-test:latest
+    environment:
+      TLS_VERSION: TLSv1.3
+      TLS_CIPHER: TLS_AES_256_GCM_SHA384
+      KMS_KEY_TYPE: RSA_2048
+      PQC_KEM: ML-KEM-768
+      PQC_SIGNATURE: ML-DSA-65
