@@ -1,11 +1,11 @@
 import os
 import sys
 
-# When running locally from the repository root:
-#   backend.app.main
-#
-# When running as a Vercel service with backend/ as the service root:
-#   app.main
+# Support both:
+# 1. Running locally from the repository root:
+#       python backend/main.py
+# 2. Running with backend/ as the service root on Render:
+#       uvicorn app.main:app
 
 try:
     from backend.app.main import app
@@ -13,9 +13,8 @@ except ModuleNotFoundError as exc:
     if exc.name != "backend":
         raise
 
-    # Vercel's service root is the backend/ directory,
-    # so the app package is directly importable as "app".
     backend_dir = os.path.dirname(os.path.abspath(__file__))
+
     if backend_dir not in sys.path:
         sys.path.insert(0, backend_dir)
 
