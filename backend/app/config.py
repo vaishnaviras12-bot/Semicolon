@@ -57,7 +57,11 @@ class Settings(BaseSettings):
     QDAY_P50: int = int(os.getenv("QDAY_P50", "13"))
     QDAY_P75: int = int(os.getenv("QDAY_P75", "21"))
 
-    # SMTP & Password Reset Settings
+    # SendGrid HTTPS & Password Reset Settings
+    SENDGRID_API_KEY: str | None = os.getenv("SENDGRID_API_KEY", None)
+    SENDGRID_FROM_EMAIL: str | None = os.getenv("SENDGRID_FROM_EMAIL", None)
+
+    # Legacy SMTP Settings (maintained for local fallback compatibility)
     SMTP_HOST: str | None = os.getenv("SMTP_HOST", None)
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME: str | None = os.getenv("SMTP_USERNAME", None)

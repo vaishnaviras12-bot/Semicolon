@@ -182,26 +182,66 @@ def test_smtp_unconfigured_returns_503():
     assert "SMTP not configured" in r.json()["detail"]
 
 
-def test_smtp_missing_host_or_invalid_from_raises_valueerror():
+def test_sendgrid_https_successful_dispatch():
+    from backend.app.config import settings
+    from backend.app.utils.email import send_password_reset_otp_email
+    from unittest.mock import MagicMock
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 202
+
+    with patch.object(settings, "SENDGRID_API_KEY", "SG.test_key_12345"), \
+         patch.object(settings, "SENDGRID_FROM_EMAIL", "support@example.com"), \
+         patch("backend.app.utils.email.requests.post", return_value=mock_resp) as mock_post:
+        send_password_reset_otp_email("testuser@example.com", "123456")
+        assert mock_post.called
+        args, kwargs = mock_post.call_args
+        assert args[0] == "https://api.sendgrid.com/v3/mail/send"
+        assert kwargs["headers"]["Authorization"] == "Bearer SG.test_key_12345"
+        assert kwargs["json"]["personalizations"][0]["to"][0]["email"] == "testuser@example.com"
+        assert kwargs["json"]["from"]["email"] == "support@example.com"
+
+
+def test_sendgrid_https_missing_credentials_and_invalid_from_raises_valueerror():
     from backend.app.config import settings
     from backend.app.utils.email import send_password_reset_otp_email
 
-    with patch.object(settings, "SMTP_HOST", None), \
-         patch.object(settings, "SMTP_USERNAME", "apikey"), \
-         patch.object(settings, "SMTP_PASSWORD", "secret"):
+    with patch.object(settings, "SENDGRID_API_KEY", None), \
+         patch.object(settings, "SMTP_PASSWORD", None):
         with pytest.raises(ValueError, match="SMTP delivery service is not configured"):
             send_password_reset_otp_email("test@example.com", "123456")
 
-    with patch.object(settings, "SMTP_HOST", "smtp.sendgrid.net"), \
-         patch.object(settings, "SMTP_USERNAME", "apikey"), \
-         patch.object(settings, "SMTP_PASSWORD", "secret"), \
-         patch.object(settings, "SMTP_FROM", "apikey"):
+    with patch.object(settings, "SENDGRID_API_KEY", "SG.test_key"), \
+         patch.object(settings, "SENDGRID_FROM_EMAIL", "apikey"):
         with pytest.raises(ValueError, match="SMTP sender address"):
             send_password_reset_otp_email("test@example.com", "123456")
 
-    with patch.object(settings, "SMTP_HOST", "smtp.sendgrid.net"), \
-         patch.object(settings, "SMTP_USERNAME", "apikey"), \
-         patch.object(settings, "SMTP_PASSWORD", "secret"), \
-         patch.object(settings, "SMTP_FROM", None):
-        with pytest.raises(ValueError, match="SMTP sender address"):
+
+def test_sendgrid_https_api_errors_handled_safely():
+    from backend.app.config import settings
+    from backend.app.utils.email import send_password_reset_otp_email
+    import requests
+    from unittest.mock import MagicMock
+
+    # 401 Auth error
+    mock_401 = MagicMock(status_code=401)
+    with patch.object(settings, "SENDGRID_API_KEY", "SG.bad_key"), \
+         patch.object(settings, "SENDGRID_FROM_EMAIL", "support@example.com"), \
+         patch("backend.app.utils.email.requests.post", return_value=mock_401):
+        with pytest.raises(ValueError, match="SendGrid authentication failed"):
+            send_password_reset_otp_email("test@example.com", "123456")
+
+    # 400 Sender rejection error
+    mock_400 = MagicMock(status_code=400)
+    with patch.object(settings, "SENDGRID_API_KEY", "SG.test_key"), \
+         patch.object(settings, "SENDGRID_FROM_EMAIL", "unverified@example.com"), \
+         patch("backend.app.utils.email.requests.post", return_value=mock_400):
+        with pytest.raises(ValueError, match="SendGrid delivery rejected"):
+            send_password_reset_otp_email("test@example.com", "123456")
+
+    # Timeout error
+    with patch.object(settings, "SENDGRID_API_KEY", "SG.test_key"), \
+         patch.object(settings, "SENDGRID_FROM_EMAIL", "support@example.com"), \
+         patch("backend.app.utils.email.requests.post", side_effect=requests.exceptions.Timeout("Timeout")):
+        with pytest.raises(ValueError, match="Timeout connecting"):
             send_password_reset_otp_email("test@example.com", "123456")
