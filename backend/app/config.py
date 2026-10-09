@@ -46,7 +46,8 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
-        "http://localhost:8000"
+        "http://localhost:8000",
+        "https://semicolon-eta.vercel.app"
     ]
 
     # Mosca & Risk Planning Horizons
@@ -57,7 +58,7 @@ class Settings(BaseSettings):
     QDAY_P75: int = int(os.getenv("QDAY_P75", "21"))
 
     # SMTP & Password Reset Settings
-    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_HOST: str | None = os.getenv("SMTP_HOST", None)
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME: str | None = os.getenv("SMTP_USERNAME", None)
     SMTP_PASSWORD: str | None = os.getenv("SMTP_PASSWORD", None)

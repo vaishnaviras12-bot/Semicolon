@@ -1,12 +1,12 @@
 """
 SMTP Email Delivery Utility
 ===========================
-Sends the 6-digit password-reset OTP through Gmail SMTP (or any SMTP server)
+Sends the 6-digit password-reset OTP through SendGrid SMTP (or any standard SMTP server)
 using Python's standard smtplib.  STARTTLS on 587, implicit SSL on 465.
 
-Gmail setup: enable 2-Step Verification on the sender account, create an
-"App Password" (Google Account > Security > App passwords) and put it in
-SMTP_PASSWORD.  The normal Gmail password will NOT work.
+SendGrid setup: Set SMTP_HOST=smtp.sendgrid.net, SMTP_PORT=587,
+SMTP_USERNAME=apikey, SMTP_PASSWORD=<SendGrid API key>, and
+SMTP_FROM=<verified sender address>.
 """
 
 import logging
@@ -22,11 +22,17 @@ def send_password_reset_otp_email(to_email: str, otp: str) -> None:
     Email a 6-digit OTP to the account's registered address.
     Raises ValueError if SMTP credentials are missing, or an smtplib/OS error on delivery failure.
     """
-    if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
-        logger.warning("SMTP credentials missing in environment. Unable to deliver OTP.")
+    if not settings.SMTP_HOST or not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
+        logger.warning("SMTP credentials/host missing in environment. Unable to deliver OTP.")
         raise ValueError("SMTP delivery service is not configured on this server.")
 
-    from_addr = settings.SMTP_FROM or settings.SMTP_USERNAME
+    from_addr = settings.SMTP_FROM
+    if not from_addr and settings.SMTP_USERNAME and "@" in settings.SMTP_USERNAME:
+        from_addr = settings.SMTP_USERNAME
+
+    if not from_addr or "@" not in from_addr or from_addr.strip().lower() == "apikey":
+        logger.warning("SMTP sender address (SMTP_FROM) is missing or invalid. Unable to deliver OTP.")
+        raise ValueError("SMTP sender address (SMTP_FROM) is not configured correctly.")
     minutes = settings.PASSWORD_RESET_EXPIRE_MINUTES
 
     msg = EmailMessage()

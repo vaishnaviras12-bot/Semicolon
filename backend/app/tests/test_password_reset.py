@@ -180,3 +180,28 @@ def test_smtp_unconfigured_returns_503():
         r = client.post("/api/v1/auth/forgot-password", json={"email": email})
     assert r.status_code == 503
     assert "SMTP not configured" in r.json()["detail"]
+
+
+def test_smtp_missing_host_or_invalid_from_raises_valueerror():
+    from backend.app.config import settings
+    from backend.app.utils.email import send_password_reset_otp_email
+
+    with patch.object(settings, "SMTP_HOST", None), \
+         patch.object(settings, "SMTP_USERNAME", "apikey"), \
+         patch.object(settings, "SMTP_PASSWORD", "secret"):
+        with pytest.raises(ValueError, match="SMTP delivery service is not configured"):
+            send_password_reset_otp_email("test@example.com", "123456")
+
+    with patch.object(settings, "SMTP_HOST", "smtp.sendgrid.net"), \
+         patch.object(settings, "SMTP_USERNAME", "apikey"), \
+         patch.object(settings, "SMTP_PASSWORD", "secret"), \
+         patch.object(settings, "SMTP_FROM", "apikey"):
+        with pytest.raises(ValueError, match="SMTP sender address"):
+            send_password_reset_otp_email("test@example.com", "123456")
+
+    with patch.object(settings, "SMTP_HOST", "smtp.sendgrid.net"), \
+         patch.object(settings, "SMTP_USERNAME", "apikey"), \
+         patch.object(settings, "SMTP_PASSWORD", "secret"), \
+         patch.object(settings, "SMTP_FROM", None):
+        with pytest.raises(ValueError, match="SMTP sender address"):
+            send_password_reset_otp_email("test@example.com", "123456")
