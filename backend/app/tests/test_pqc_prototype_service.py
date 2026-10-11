@@ -220,3 +220,136 @@ def test_rsa_unknown_purpose_automated_ml_kem_prototype():
     assert res["status"] == "success"
     assert res["operation"] == "encapsulate_decapsulate"
 
+
+def test_ml_dsa_65_verification_failure_mocked():
+    """Mocked test: signature verification returning False sets status='failed'."""
+    finding_data = {
+        "algorithm": "ECDSA",
+        "purpose": "signing",
+        "recommendation": {"primary": "ML-DSA-65 (NIST FIPS 204)"}
+    }
+    mock_signer = MagicMock()
+    mock_signer.generate_keypair.return_value = b"sample_pub_key"
+    mock_signer.sign.return_value = b"sample_signature"
+    mock_signer.verify.return_value = False  # Verification failure
+
+    mock_oqs = MagicMock()
+    mock_oqs.get_enabled_sig_mechanisms.return_value = ["ML-DSA-65"]
+    mock_oqs.Signature.return_value.__enter__.return_value = mock_signer
+
+    with patch("backend.app.services.pqc_prototype_service.OQS_AVAILABLE", True), \
+         patch("backend.app.services.pqc_prototype_service.oqs", mock_oqs, create=True):
+        res = run_pqc_prototype(finding_data)
+        assert res["status"] == "failed"
+        assert res["validation"]["verification"] is False
+        assert "failed" in res["message"].lower()
+
+
+def test_ml_kem_768_secret_mismatch_mocked():
+    """Mocked test: mismatched shared secret sets status='failed'."""
+    finding_data = {
+        "algorithm": "ECDH",
+        "purpose": "key_establishment",
+        "recommendation": {"primary": "ML-KEM-768 (NIST FIPS 203)"}
+    }
+    mock_client = MagicMock()
+    mock_client.generate_keypair.return_value = b"sample_pub_key"
+    mock_client.encap_secret.return_value = (b"ciphertext", b"shared_secret_1")
+    mock_client.decap_secret.return_value = b"shared_secret_2_mismatched"
+
+    mock_oqs = MagicMock()
+    mock_oqs.get_enabled_kem_mechanisms.return_value = ["ML-KEM-768"]
+    mock_oqs.KeyEncapsulation.return_value.__enter__.return_value = mock_client
+
+    with patch("backend.app.services.pqc_prototype_service.OQS_AVAILABLE", True), \
+         patch("backend.app.services.pqc_prototype_service.oqs", mock_oqs, create=True):
+        res = run_pqc_prototype(finding_data)
+        assert res["status"] == "failed"
+        assert res["validation"]["shared_secret_match"] is False
+
+
+def test_pqc_runtime_exception_handled():
+    """Mocked test: unexpected crypto exception sets status='failed' cleanly."""
+    finding_data = {
+        "algorithm": "ECDSA",
+        "purpose": "signing",
+        "recommendation": {"primary": "ML-DSA-65"}
+    }
+    mock_oqs = MagicMock()
+    mock_oqs.get_enabled_sig_mechanisms.return_value = ["ML-DSA-65"]
+    mock_oqs.Signature.side_effect = RuntimeError("Low level crypto failure")
+
+    with patch("backend.app.services.pqc_prototype_service.OQS_AVAILABLE", True), \
+         patch("backend.app.services.pqc_prototype_service.oqs", mock_oqs, create=True):
+        res = run_pqc_prototype(finding_data)
+        assert res["status"] == "failed"
+        assert "Low level crypto failure" in res["reason"]
+
+
+def test_live_real_liboqs_ml_dsa_65_execution():
+    """Real in-memory cryptographic test: ML-DSA-65 key generation, signing, and verification."""
+    from backend.app.services.pqc_prototype_service import OQS_AVAILABLE
+    if not OQS_AVAILABLE:
+        pytest.skip("liboqs native library not available in current test environment")
+
+    finding_data = {
+        "algorithm": "ECDSA",
+        "purpose": "signing",
+        "recommendation": {"primary": "ML-DSA-65 (NIST FIPS 204)"}
+    }
+    res = run_pqc_prototype(finding_data)
+    assert res["status"] == "success"
+    assert res["algorithm"] == "ML-DSA-65"
+    assert res["operation"] == "sign_verify"
+    assert res["validation"]["key_generation"] is True
+    assert res["validation"]["signing"] is True
+    assert res["validation"]["verification"] is True
+    assert res["metrics"]["key_generation_ms"] > 0
+    assert res["metrics"]["signing_ms"] > 0
+    assert res["metrics"]["verification_ms"] > 0
+    assert res["metrics"]["public_key_bytes"] > 0
+    assert res["metrics"]["signature_bytes"] > 0
+
+
+def test_live_real_liboqs_ml_kem_768_execution():
+    """Real in-memory cryptographic test: ML-KEM-768 key generation, encapsulation, and decapsulation."""
+    from backend.app.services.pqc_prototype_service import OQS_AVAILABLE
+    if not OQS_AVAILABLE:
+        pytest.skip("liboqs native library not available in current test environment")
+
+    finding_data = {
+        "algorithm": "ECDH",
+        "purpose": "key_establishment",
+        "recommendation": {"primary": "ML-KEM-768 (NIST FIPS 203)"}
+    }
+    res = run_pqc_prototype(finding_data)
+    assert res["status"] == "success"
+    assert res["algorithm"] == "ML-KEM-768"
+    assert res["operation"] == "encapsulate_decapsulate"
+    assert res["validation"]["key_generation"] is True
+    assert res["validation"]["encapsulation"] is True
+    assert res["validation"]["decapsulation"] is True
+    assert res["validation"]["shared_secret_match"] is True
+    assert res["metrics"]["key_generation_ms"] > 0
+    assert res["metrics"]["encapsulation_ms"] > 0
+    assert res["metrics"]["decapsulation_ms"] > 0
+    assert res["metrics"]["public_key_bytes"] > 0
+    assert res["metrics"]["ciphertext_bytes"] > 0
+    assert res["metrics"]["shared_secret_bytes"] == 32
+
+
+def test_pqc_diagnostics_live():
+    """Diagnostic check test: get_pqc_environment_diagnostics returns valid structure."""
+    from backend.app.services.pqc_prototype_service import get_pqc_environment_diagnostics
+    diag = get_pqc_environment_diagnostics()
+    assert "operating_system" in diag
+    assert "python_version" in diag
+    assert "oqs_available" in diag
+    assert "library" in diag
+    assert diag["library"] == "liboqs"
+    if diag["oqs_available"]:
+        assert diag["ml_dsa_65_supported"] is True
+        assert diag["ml_kem_768_supported"] is True
+        assert len(diag["enabled_signature_mechanisms"]) > 0
+        assert len(diag["enabled_kem_mechanisms"]) > 0
+

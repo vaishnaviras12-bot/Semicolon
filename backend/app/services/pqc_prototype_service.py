@@ -13,6 +13,7 @@ Key Principles:
 6. Never modifies scanned files, application source code, or certificates.
 """
 
+import os
 import sys
 import platform
 import time
@@ -21,17 +22,75 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger("ecdat.pqc_prototype_service")
 
-# Check for liboqs python bindings
-OQS_AVAILABLE = False
-OQS_IMPORT_ERROR: Optional[str] = None
-try:
-    import oqs  # type: ignore
-    OQS_AVAILABLE = True
-except (Exception, SystemExit) as err:
-    OQS_AVAILABLE = False
-    _os_name = platform.system()
-    _lib_name = "oqs.dll" if _os_name == "Windows" else ("liboqs.so" if _os_name == "Linux" else "liboqs.dylib")
-    OQS_IMPORT_ERROR = f"Native {_lib_name} shared library not found or failed to load: {str(err)}"
+
+def _discover_and_init_oqs():
+    """
+    Initializes Open Quantum Safe (liboqs) Python bindings and native library discovery.
+    Configures environment paths dynamically to support Render Linux deployments
+    where native liboqs is compiled into project root .oqs or specified via OQS_INSTALL_PATH.
+    """
+    candidate_paths = []
+    if "OQS_INSTALL_PATH" in os.environ and os.environ["OQS_INSTALL_PATH"]:
+        candidate_paths.append(os.environ["OQS_INSTALL_PATH"])
+
+    _service_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+    candidate_paths.extend([
+        os.path.join(_service_dir, ".oqs"),
+        os.path.join(_project_root, ".oqs"),
+        os.path.join(os.getcwd(), ".oqs"),
+        "/opt/render/project/src/backend/.oqs",
+        "/opt/render/project/src/.oqs",
+        os.path.expanduser("~/_oqs"),
+        "/usr/local",
+        "/usr",
+    ])
+
+    for cand in candidate_paths:
+        if cand and os.path.isdir(cand):
+            has_native = (
+                os.path.isfile(os.path.join(cand, "lib", "liboqs.so")) or
+                os.path.isfile(os.path.join(cand, "lib64", "liboqs.so")) or
+                os.path.isfile(os.path.join(cand, "bin", "oqs.dll")) or
+                os.path.isfile(os.path.join(cand, "bin", "liboqs.dll"))
+            )
+            if has_native:
+                if "OQS_INSTALL_PATH" not in os.environ:
+                    os.environ["OQS_INSTALL_PATH"] = cand
+
+                lib_dir = os.path.join(cand, "lib")
+                lib64_dir = os.path.join(cand, "lib64")
+                cur_ld = os.environ.get("LD_LIBRARY_PATH", "")
+                parts = [p for p in [lib_dir, lib64_dir, cur_ld] if p]
+                os.environ["LD_LIBRARY_PATH"] = ":".join(parts)
+
+                if platform.system() == "Windows":
+                    bin_dir = os.path.join(cand, "bin")
+                    if os.path.isdir(bin_dir) and hasattr(os, "add_dll_directory"):
+                        try:
+                            os.add_dll_directory(bin_dir)
+                        except Exception:
+                            pass
+                break
+
+    try:
+        import oqs  # type: ignore
+        sigs = oqs.get_enabled_sig_mechanisms()
+        kems = oqs.get_enabled_kem_mechanisms()
+        logger.info(
+            f"liboqs native library initialized successfully. "
+            f"Enabled: {len(sigs)} signatures, {len(kems)} KEMs."
+        )
+        return True, None, oqs
+    except (Exception, SystemExit) as err:
+        _os_name = platform.system()
+        _lib_name = "oqs.dll" if _os_name == "Windows" else ("liboqs.so" if _os_name == "Linux" else "liboqs.dylib")
+        err_msg = f"Native {_lib_name} shared library not found or failed to load: {str(err)}"
+        logger.warning(f"liboqs unavailable: {err_msg}")
+        return False, err_msg, None
+
+
+OQS_AVAILABLE, OQS_IMPORT_ERROR, oqs = _discover_and_init_oqs()
 
 
 def get_pqc_environment_diagnostics() -> Dict[str, Any]:

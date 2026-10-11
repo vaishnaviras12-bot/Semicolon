@@ -22,11 +22,38 @@ from backend.app.database.connection import engine, Base
 from backend.app.database.migrations import run_schema_migrations
 from backend.app.api.router import api_router
 
+import logging
 from sqlalchemy import text
+
+logger = logging.getLogger("ecdat.main")
 
 # Initialize Database Schema & Migrations
 Base.metadata.create_all(bind=engine)
 run_schema_migrations(engine, Base)
+
+def _log_pqc_startup_status():
+    try:
+        from backend.app.services.pqc_prototype_service import get_pqc_environment_diagnostics
+        diag = get_pqc_environment_diagnostics()
+        if diag.get("oqs_available"):
+            logger.info(
+                f"[ECDAT PQC Readiness] liboqs native library is READY: "
+                f"ML-DSA-65={diag.get('ml_dsa_65_supported')}, "
+                f"ML-KEM-768={diag.get('ml_kem_768_supported')}, "
+                f"Enabled Signatures={len(diag.get('enabled_signature_mechanisms', []))}, "
+                f"Enabled KEMs={len(diag.get('enabled_kem_mechanisms', []))} "
+                f"({diag.get('operating_system')} {diag.get('cpu_architecture')})"
+            )
+        else:
+            logger.warning(
+                f"[ECDAT PQC Readiness] liboqs native library is UNAVAILABLE: "
+                f"{diag.get('unavailability_reason')}. "
+                f"Set OQS_INSTALL_PATH or compile native liboqs."
+            )
+    except Exception as e:
+        logger.warning(f"[ECDAT PQC Readiness] Failed to inspect liboqs status: {e}")
+
+_log_pqc_startup_status()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
